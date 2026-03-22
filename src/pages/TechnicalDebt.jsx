@@ -13,7 +13,19 @@ export default function TechnicalDebt() {
 
   const fetchDebts = async () => {
     try {
-      const response = await fetch('/api/technical-debt')
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch('/api/technical-debt', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.status === 401) {
+        localStorage.removeItem('auth_token')
+        window.location.reload()
+        return
+      }
+
       const data = await response.json()
       setDebts(data)
       setLoading(false)
@@ -25,9 +37,13 @@ export default function TechnicalDebt() {
 
   const createDebt = async (debtData) => {
     try {
+      const token = localStorage.getItem('auth_token')
       await fetch('/api/technical-debt', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(debtData)
       })
       fetchDebts()

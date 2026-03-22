@@ -15,7 +15,19 @@ export default function Incidents() {
 
   const fetchIncidents = async () => {
     try {
-      const response = await fetch('/api/incidents')
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch('/api/incidents', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.status === 401) {
+        localStorage.removeItem('auth_token')
+        window.location.reload()
+        return
+      }
+
       const data = await response.json()
       setIncidents(data)
       setLoading(false)
@@ -27,11 +39,22 @@ export default function Incidents() {
 
   const createIncident = async (incidentData) => {
     try {
+      const token = localStorage.getItem('auth_token')
       const response = await fetch('/api/incidents', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(incidentData)
       })
+
+      if (response.status === 401) {
+        localStorage.removeItem('auth_token')
+        window.location.reload()
+        return
+      }
+
       const newIncident = await response.json()
       setIncidents([newIncident, ...incidents])
       setShowCreateModal(false)
@@ -42,9 +65,13 @@ export default function Incidents() {
 
   const updateIncidentStatus = async (id, status) => {
     try {
+      const token = localStorage.getItem('auth_token')
       await fetch(`/api/incidents/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ status, resolvedAt: status === 'resolved' ? new Date() : null })
       })
       fetchIncidents()

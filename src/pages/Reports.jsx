@@ -15,9 +15,26 @@ export default function Reports() {
 
   const fetchReports = async () => {
     try {
+      const token = localStorage.getItem('auth_token')
+      const headers = { 'Authorization': `Bearer ${token}` }
+
       const [weekly, monthly] = await Promise.all([
-        fetch('/api/reports/weekly').then(r => r.json()),
-        fetch('/api/reports/monthly').then(r => r.json())
+        fetch('/api/reports/weekly', { headers }).then(r => {
+          if (r.status === 401) {
+            localStorage.removeItem('auth_token')
+            window.location.reload()
+            return []
+          }
+          return r.json()
+        }),
+        fetch('/api/reports/monthly', { headers }).then(r => {
+          if (r.status === 401) {
+            localStorage.removeItem('auth_token')
+            window.location.reload()
+            return []
+          }
+          return r.json()
+        })
       ])
       setWeeklyReports(weekly)
       setMonthlyReports(monthly)
@@ -30,10 +47,14 @@ export default function Reports() {
 
   const createReport = async (reportData) => {
     try {
+      const token = localStorage.getItem('auth_token')
       const endpoint = reportType === 'weekly' ? '/api/reports/weekly' : '/api/reports/monthly'
       await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(reportData)
       })
       fetchReports()
