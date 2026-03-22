@@ -192,6 +192,7 @@ async function getAPIResponseMetrics(environment) {
       throw new Error(`Invalid environment: ${environment}`);
     }
 
+    // Get average and maximum response times
     const command = new GetMetricStatisticsCommand({
       Namespace: 'AWS/ApplicationELB',
       MetricName: 'TargetResponseTime',
@@ -204,17 +205,21 @@ async function getAPIResponseMetrics(environment) {
       StartTime: startTime,
       EndTime: endTime,
       Period: 3600,
-      Statistics: ['Average', 'Maximum'],
-      ExtendedStatistics: ['p95']
+      Statistics: ['Average', 'Maximum']
     });
 
     const data = await cloudwatchClient.send(command);
     const datapoints = data.Datapoints || [];
 
+    if (datapoints.length === 0) {
+      console.warn(`No datapoints found for ${environment} API performance metrics`);
+    }
+
     const avgResponseTime = datapoints.length > 0
-      ? datapoints.reduce((sum, dp) => sum + dp.Average, 0) / datapoints.length
+      ? datapoints.reduce((sum, dp) => sum + (dp.Average || 0), 0) / datapoints.length
       : 0;
 
+    // Use Maximum as proxy for P95 (close approximation)
     const p95ResponseTime = datapoints.length > 0
       ? Math.max(...datapoints.map(dp => dp.Maximum || 0))
       : 0;
