@@ -637,6 +637,45 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
+// Synthetic traffic generator for staging
+async function generateStagingTraffic() {
+  const stagingEndpoints = [
+    'https://api.dev.swapegypt.app/api/v1/categories',
+    'https://api.dev.swapegypt.app/api/v1/locations',
+    'https://api.dev.swapegypt.app/api/v1/app/version',
+    'https://api.dev.swapegypt.app/.well-known/assetlinks.json'
+  ];
+
+  let successCount = 0;
+  let errorCount = 0;
+
+  console.log('🤖 Generating synthetic traffic to staging...');
+
+  for (const endpoint of stagingEndpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'CTO-Dashboard-Synthetic-Monitor/1.0'
+        }
+      });
+
+      if (response.ok) {
+        successCount++;
+      } else {
+        errorCount++;
+      }
+    } catch (error) {
+      errorCount++;
+      console.error(`Failed to reach ${endpoint}:`, error.message);
+    }
+  }
+
+  console.log(`✅ Synthetic traffic complete: ${successCount} success, ${errorCount} errors`);
+
+  return { successCount, errorCount };
+}
+
 // Scheduled metrics collection (every 5 minutes)
 cron.schedule('*/5 * * * *', async () => {
   console.log('Collecting metrics...');
@@ -660,6 +699,15 @@ cron.schedule('*/5 * * * *', async () => {
     console.log('Metrics collected successfully');
   } catch (error) {
     console.error('Error collecting metrics:', error);
+  }
+});
+
+// Synthetic traffic for staging (every 3 minutes)
+cron.schedule('*/3 * * * *', async () => {
+  try {
+    await generateStagingTraffic();
+  } catch (error) {
+    console.error('Error generating synthetic traffic:', error);
   }
 });
 
