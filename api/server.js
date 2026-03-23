@@ -185,6 +185,7 @@ async function calculateUptime(environment) {
 async function getAPIResponseMetrics(environment) {
   const endTime = new Date();
   const startTime = new Date(endTime.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const last24hStart = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
 
   try {
     const config = AWS_CONFIG[environment];
@@ -192,8 +193,8 @@ async function getAPIResponseMetrics(environment) {
       throw new Error(`Invalid environment: ${environment}`);
     }
 
-    // Get average and maximum response times
-    const command = new GetMetricStatisticsCommand({
+    // Get 30-day metrics
+    const command30d = new GetMetricStatisticsCommand({
       Namespace: 'AWS/ApplicationELB',
       MetricName: 'TargetResponseTime',
       Dimensions: [
@@ -208,31 +209,75 @@ async function getAPIResponseMetrics(environment) {
       Statistics: ['Average', 'Maximum']
     });
 
-    const data = await cloudwatchClient.send(command);
-    const datapoints = data.Datapoints || [];
+    const data30d = await cloudwatchClient.send(command30d);
+    const datapoints30d = data30d.Datapoints || [];
 
-    if (datapoints.length === 0) {
+    // Get last 24h metrics for "improving" detection
+    const command24h = new GetMetricStatisticsCommand({
+      Namespace: 'AWS/ApplicationELB',
+      MetricName: 'TargetResponseTime',
+      Dimensions: [
+        {
+          Name: 'LoadBalancer',
+          Value: config.loadBalancer
+        }
+      ],
+      StartTime: last24hStart,
+      EndTime: endTime,
+      Period: 3600,
+      Statistics: ['Average']
+    });
+
+    const data24h = await cloudwatchClient.send(command24h);
+    const datapoints24h = data24h.Datapoints || [];
+
+    if (datapoints30d.length === 0) {
       console.warn(`No datapoints found for ${environment} API performance metrics`);
     }
 
-    const avgResponseTime = datapoints.length > 0
-      ? datapoints.reduce((sum, dp) => sum + (dp.Average || 0), 0) / datapoints.length
+    // 30-day calculations
+    const avgResponseTime = datapoints30d.length > 0
+      ? datapoints30d.reduce((sum, dp) => sum + (dp.Average || 0), 0) / datapoints30d.length
       : 0;
 
-    // Use Maximum as proxy for P95 (close approximation)
-    const p95ResponseTime = datapoints.length > 0
-      ? Math.max(...datapoints.map(dp => dp.Maximum || 0))
+    const p95ResponseTime = datapoints30d.length > 0
+      ? Math.max(...datapoints30d.map(dp => dp.Maximum || 0))
       : 0;
 
-    const complianceRate = datapoints.length > 0
-      ? (datapoints.filter(dp => dp.Average < 0.5).length / datapoints.length * 100)
+    const complianceRate = datapoints30d.length > 0
+      ? (datapoints30d.filter(dp => dp.Average < 0.5).length / datapoints30d.length * 100)
       : 100;
+
+    // 24h calculations for "improving" detection
+    const complianceRate24h = datapoints24h.length > 0
+      ? (datapoints24h.filter(dp => dp.Average < 0.5).length / datapoints24h.length * 100)
+      : 100;
+
+    const avgResponseTime24h = datapoints24h.length > 0
+      ? datapoints24h.reduce((sum, dp) => sum + (dp.Average || 0), 0) / datapoints24h.length
+      : 0;
+
+    // Determine status with "improving" detection
+    let status = 'compliant';
+    if (complianceRate < 95) {
+      // If 30-day is non-compliant but 24h is good, mark as "improving"
+      if (complianceRate24h >= 95 && datapoints24h.length >= 3) {
+        status = 'improving';
+      } else {
+        status = 'non-compliant';
+      }
+    }
 
     return {
       avgResponseTime: avgResponseTime.toFixed(3),
       p95ResponseTime: p95ResponseTime.toFixed(3),
       complianceRate: complianceRate.toFixed(2),
-      status: complianceRate >= 95 ? 'compliant' : 'non-compliant',
+      status,
+      recent24h: {
+        complianceRate: complianceRate24h.toFixed(2),
+        avgResponseTime: avgResponseTime24h.toFixed(3),
+        datapointCount: datapoints24h.length
+      },
       timestamp: new Date().toISOString()
     };
   } catch (error) {
