@@ -1,10 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom'
-import { Activity, AlertTriangle, FileText, TrendingUp, Settings, Menu, X, LogOut } from 'lucide-react'
+import { Activity, AlertTriangle, FileText, TrendingUp, Settings, Menu, X, LogOut, Calculator } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import Dashboard from './pages/Dashboard'
 import Incidents from './pages/Incidents'
 import Reports from './pages/Reports'
 import TechnicalDebt from './pages/TechnicalDebt'
+import MetricsCalculation from './pages/MetricsCalculation'
 import Login from './pages/Login'
 
 function Layout({ children, onLogout, environment, setEnvironment }) {
@@ -16,6 +17,7 @@ function Layout({ children, onLogout, environment, setEnvironment }) {
     { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
     { name: 'Reports', href: '/reports', icon: FileText },
     { name: 'Technical Debt', href: '/technical-debt', icon: TrendingUp },
+    { name: 'Metrics Calculation', href: '/metrics-calculation', icon: Calculator },
   ]
 
   return (
@@ -173,6 +175,7 @@ function App() {
           <Route path="/incidents" element={<Incidents />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/technical-debt" element={<TechnicalDebt />} />
+          <Route path="/metrics-calculation" element={<MetricsCalculation />} />
         </Routes>
       </Layout>
     </Router>
